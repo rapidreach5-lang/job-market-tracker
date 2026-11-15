@@ -1,36 +1,36 @@
-from bs4 import BeautifulSoup
+from database import init_db, save_jobs
 import requests
 
 
 def scrape_jobs():
-  # Example target URL (using a test scraping site or a target job board)
-  url = "https://news.ycombinator.com/"  # Or a target tech board
+  url = "https://remoteok.com/api"
   headers = {"User-Agent": "Mozilla/5.0"}
 
   response = requests.get(url, headers=headers)
-  soup = BeautifulSoup(response.text, "html.parser")
+  data = response.json()
 
   jobs = []
-  # Extracting items (adjust tags based on the website you choose)
-  items = soup.find_all("tr", class_="athing")
+  for item in data[1:]:
+    title = item.get("position")
+    company = item.get("company")
+    url_link = item.get("url")
+    # Grab the minimum salary, default to 0 if the employer didn't list one
+    salary = item.get("salary_min", 0) or 0
 
-  for item in items:
-    title_tag = item.find("span", class_="titleline")
-    if title_tag:
-      title = title_tag.text
-      link = title_tag.find("a")["href"]
-      jobs.append({"title": title, "source": link})
+    if title and company:
+      jobs.append({
+          "title": f"{title} at {company}",
+          "source": url_link,
+          "salary_min": int(salary),
+      })
 
   return jobs
 
 
-from database import init_db, save_jobs  # Import your database functions
-
 if __name__ == "__main__":
-  print("Scraping items...")
+  print("Fetching remote jobs and salaries...")
   scraped_data = scrape_jobs()
 
-  # Initialize DB and save data automatically
   init_db()
   save_jobs(scraped_data)
-  print(f"Successfully saved {len(scraped_data)} items to the database!")
+  print(f"Successfully saved {len(scraped_data)} jobs with salary data!")

@@ -6,36 +6,58 @@ st.set_page_config(
     page_title="Job Market Intelligence", page_icon="📊", layout="wide"
 )
 
-st.title("📊 Remote & Tech Job Market Intelligence Dashboard")
+st.title("📊 Remote Tech Job Market Intelligence Dashboard")
 st.markdown(
-    "Tracking market trends, job postings, and tech stack demand in real-time."
+    "Tracking real-time remote positions and top-paying career opportunities."
 )
 
 
-# Load data from SQLite
+# Load top-paying jobs leaderboard from SQLite
 @st.cache_data
-def load_data():
+def load_leaderboard():
+  conn = sqlite3.connect("jobs.db")
+  # Only pull jobs where salary is listed (> 0), sorted highest to lowest
+  df = pd.read_sql(
+      "SELECT title, salary_min, source FROM jobs WHERE salary_min > 0 ORDER BY"
+      " salary_min DESC LIMIT 3",
+      conn,
+  )
+  conn.close()
+  return df
+
+
+# --- LEADERBOARD SECTION ---
+st.subheader("🏆 Top-Paying Jobs Leaderboard")
+leaderboard_df = load_leaderboard()
+
+if not leaderboard_df.empty:
+  cols = st.columns(len(leaderboard_df))
+  for i, (index, row) in enumerate(leaderboard_df.iterrows()):
+    with cols[i]:
+      st.metric(
+          label=row["title"],
+          value=f"${row['salary_min']:,}/yr",
+          delta="Top Earner",
+      )
+else:
+  st.info("Run your scraper to populate salary listings for the leaderboard!")
+
+st.divider()
+
+# --- FULL DATA TABLE ---
+
+
+@st.cache_data
+def load_all_data():
   conn = sqlite3.connect("jobs.db")
   df = pd.read_sql("SELECT * FROM jobs", conn)
   conn.close()
   return df
 
 
-df = load_data()
-
-# Display Metrics
-col1, col2, col3 = st.columns(3)
-col1.metric("Total Jobs Tracked", len(df))
-col2.metric("Active Sources", df["source"].nunique() if not df.empty else 0)
-col3.metric("Data Status", "Live / Local SQLite")
-
-st.divider()
-
-# Display Data Table
-st.subheader("📋 Scraped Job Listings")
+df = load_all_data()
+st.subheader("📋 All Scraped Job Listings")
 if not df.empty:
   st.dataframe(df, use_container_width=True)
 else:
-  st.info(
-      "No data found in database yet. Run your scraper script to populate data!"
-  )
+  st.info("No data found in database yet.")
